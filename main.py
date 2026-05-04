@@ -16,20 +16,31 @@ from physics import DronePhysics
 # --- Create the app window ---
 app = Ursina(title="Drone Simulator", borderless=False)
 
+def add_outline(entity, thickness=3):
+    """Add black edge lines visible from any angle using wireframe rendering."""
+    outline = Entity(model="cube", parent=entity, scale=1.001, color=color.black)
+    outline.setRenderModeWireframe(thickness)
+
+
 # --- World ---
 # A big green ground plane
 Entity(model="plane", scale=100, color=color.green)
 
 # Three colourful obstacles to fly around
-Entity(model="cube", position=Vec3( 5, 2,  5), scale=Vec3(2, 4, 2), color=color.red)
-Entity(model="cube", position=Vec3(-6, 2, 10), scale=Vec3(2, 4, 2), color=color.orange)
-Entity(model="cube", position=Vec3(10, 2, -4), scale=Vec3(2, 4, 2), color=color.cyan)
+red_box    = Entity(model="cube", position=Vec3( 5, 2,  5), scale=Vec3(2, 4, 2), color=color.red)
+orange_box = Entity(model="cube", position=Vec3(-6, 2, 10), scale=Vec3(2, 4, 2), color=color.orange)
+cyan_box   = Entity(model="cube", position=Vec3(10, 2, -4), scale=Vec3(2, 4, 2), color=color.cyan)
+
+add_outline(red_box)
+add_outline(orange_box)
+add_outline(cyan_box)
 
 Sky()  # blue sky background
 
 # --- Drone ---
 # Just a simple grey cube for now — we can make it fancier later!
 drone = Entity(model="cube", color=color.dark_gray, scale=0.5, position=Vec3(0, 5, 0))
+add_outline(drone, thickness=4)
 
 # --- Physics ---
 physics = DronePhysics()
