@@ -3,9 +3,10 @@
 # This file handles how the drone moves.
 # It is kept separate from the graphics so we can test it easily.
 
-GRAVITY = -9.8      # gravity pulls the drone down (negative = downward)
-THRUST  = 15.0      # how powerful the motors are
-DRAG    = 0.9       # fraction of speed kept each frame (air resistance)
+GRAVITY    = -9.8   # gravity pulls the drone down (negative = downward)
+THRUST     = 15.0   # how powerful the motors are
+DRAG       = 0.9    # fraction of speed kept each frame (air resistance)
+DRONE_HALF = 0.25   # half the drone's size (scale is 0.5)
 
 
 class DronePhysics:
@@ -24,6 +25,9 @@ class DronePhysics:
         self.vx = 0.0   # not moving left or right
         self.vy = 0.0   # not moving up or down
         self.vz = 0.0   # not moving forward or back
+
+        # Obstacles: each is (center_x, center_y, center_z, half_x, half_y, half_z)
+        self.obstacles = []
 
     def update(self, thrust, move_x, move_z, dt):
         """
@@ -56,3 +60,20 @@ class DronePhysics:
         if self.y < 0.5:
             self.y  = 0.5
             self.vy = 0
+
+        # Stop the drone going through obstacles (AABB collision)
+        for (cx, cy, cz, hx, hy, hz) in self.obstacles:
+            ox = (DRONE_HALF + hx) - abs(self.x - cx)
+            oy = (DRONE_HALF + hy) - abs(self.y - cy)
+            oz = (DRONE_HALF + hz) - abs(self.z - cz)
+            if ox > 0 and oy > 0 and oz > 0:
+                # Push out along the axis with the smallest overlap
+                if ox <= oy and ox <= oz:
+                    self.x += ox if self.x > cx else -ox
+                    self.vx = 0
+                elif oy <= ox and oy <= oz:
+                    self.y += oy if self.y > cy else -oy
+                    self.vy = 0
+                else:
+                    self.z += oz if self.z > cz else -oz
+                    self.vz = 0
