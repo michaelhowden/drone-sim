@@ -1,0 +1,263 @@
+[1mdiff --git a/main.py b/main.py[m
+[1mindex ceda738..5f50d92 100644[m
+[1m--- a/main.py[m
+[1m+++ b/main.py[m
+[36m@@ -5,35 +5,64 @@[m
+ # Controls:[m
+ #   W / S     — forward / backward[m
+ #   A / D     — left / right[m
+[31m-#   SPACE     — thrust up[m
+[31m-#   SHIFT     — sink down[m
+[32m+[m[32m#   SPACE     — fly up[m
+[32m+[m[32m#   SHIFT     — fly down[m
+ #   ESC       — quit[m
+ [m
+[31m-from ursina import Ursina, Entity, Sky, color, Vec3, held_keys, camera, Text, window, time[m
+[32m+[m[32mfrom ursina import Ursina, Entity, Sky, color, Vec3, held_keys, camera, Text, time[m
+ [m
+ from physics import DronePhysics[m
+ [m
+ # --- Create the app window ---[m
+ app = Ursina(title="Drone Simulator", borderless=False)[m
+ [m
+[32m+[m
+[32m+[m[32mdef add_outline(entity, thickness=3):[m
+[32m+[m[32m    """Add black edge lines visible from any angle using wireframe rendering."""[m
+[32m+[m[32m    outline = Entity(model="cube", parent=entity, scale=1.001, color=color.black)[m
+[32m+[m[32m    outline.setRenderModeWireframe(thickness)[m
+[32m+[m
+[32m+[m
+ # --- World ---[m
+ # A big green ground plane[m
+ Entity(model="plane", scale=100, color=color.green)[m
+ [m
+ # Three colourful obstacles to fly around[m
+[31m-Entity(model="cube", position=Vec3( 5, 2,  5), scale=Vec3(2, 4, 2), color=color.red)[m
+[31m-Entity(model="cube", position=Vec3(-6, 2, 10), scale=Vec3(2, 4, 2), color=color.orange)[m
+[31m-Entity(model="cube", position=Vec3(10, 2, -4), scale=Vec3(2, 4, 2), color=color.cyan)[m
+[32m+[m[32mred_box    = Entity(model="cube", position=Vec3( 5, 2,  5), scale=Vec3(2, 4, 2), color=color.red)[m
+[32m+[m[32morange_box = Entity(model="cube", position=Vec3(-6, 2, 10), scale=Vec3(2, 4, 2), color=color.orange)[m
+[32m+[m[32mcyan_box   = Entity(model="cube", position=Vec3(10, 2, -4), scale=Vec3(2, 4, 2), color=color.cyan)[m
+[32m+[m
+[32m+[m[32madd_outline(red_box)[m
+[32m+[m[32madd_outline(orange_box)[m
+[32m+[m[32madd_outline(cyan_box)[m
+ [m
+ Sky()  # blue sky background[m
+ [m
+ # --- Drone ---[m
+[31m-# Just a simple grey cube for now — we can make it fancier later![m
+ drone = Entity(model="cube", color=color.dark_gray, scale=0.5, position=Vec3(0, 5, 0))[m
+[32m+[m[32madd_outline(drone, thickness=4)[m
+ [m
+ # --- Physics ---[m
+ physics = DronePhysics()[m
+ [m
+[32m+[m[32m# --- Solid obstacle collision data ---[m
+[32m+[m[32m# Each entry is (centre, half-extents) matching the entity's position and scale/2[m
+[32m+[m[32mSOLID_OBSTACLES = [[m
+[32m+[m[32m    (Vec3( 5, 2,  5), Vec3(1, 2, 1)),   # red box[m
+[32m+[m[32m    (Vec3(-6, 2, 10), Vec3(1, 2, 1)),   # orange box[m
+[32m+[m[32m][m
+[32m+[m[32mDRONE_HALF = 0.25  # drone scale is 0.5, so half-extent is 0.25[m
+[32m+[m
+[32m+[m[32mdef is_colliding(pos):[m
+[32m+[m[32m    """Return True if the drone's bounding box overlaps any solid obstacle."""[m
+[32m+[m[32m    for centre, half in SOLID_OBSTACLES:[m
+[32m+[m[32m        if (abs(pos.x - centre.x) < DRONE_HALF + half.x and[m
+[32m+[m[32m            abs(pos.y - centre.y) < DRONE_HALF + half.y and[m
+[32m+[m[32m            abs(pos.z - centre.z) < DRONE_HALF + half.z):[m
+[32m+[m[32m            return True[m
+[32m+[m[32m    return False[m
+[32m+[m
+[32m+[m
+ # --- Controls hint ---[m
+ Text([m
+     "SPACE: up   SHIFT: down   WASD: move   ESC: quit",[m
+[36m@@ -46,16 +75,25 @@[m [mText([m
+ def update():[m
+     dt = time.dt  # time since last frame in seconds[m
+ [m
+[31m-    # Read keyboard input[m
+[31m-    thrust = 1.0 if held_keys["space"] else 0.3 if held_keys["shift"] else 0.65[m
+[32m+[m[32m    # Read keyboard input — the drone only moves while a key is held[m
+[32m+[m[32m    move_y = 1 if held_keys["space"] else -1 if held_keys["shift"] else 0[m
+     move_x = held_keys["d"] - held_keys["a"]   # right=+1, left=-1[m
+     move_z = held_keys["w"] - held_keys["s"]   # forward=+1, back=-1[m
+ [m
+[32m+[m[32m    # Save position before moving so we can revert on collision[m
+[32m+[m[32m    old_x, old_y, old_z = physics.x, physics.y, physics.z[m
+[32m+[m
+     # Update the physics[m
+[31m-    physics.update(thrust, move_x, move_z, dt)[m
+[32m+[m[32m    physics.update(move_x, move_y, move_z, dt)[m
+[32m+[m
+[32m+[m[32m    # Block movement through solid obstacles[m
+[32m+[m[32m    new_pos = Vec3(physics.x, physics.y, physics.z)[m
+[32m+[m[32m    if is_colliding(new_pos):[m
+[32m+[m[32m        physics.x, physics.y, physics.z = old_x, old_y, old_z[m
+[32m+[m[32m        new_pos = Vec3(old_x, old_y, old_z)[m
+ [m
+     # Move the drone cube to match the physics position[m
+[31m-    drone.position = Vec3(physics.x, physics.y, physics.z)[m
+[32m+[m[32m    drone.position = new_pos[m
+ [m
+     # Camera follows the drone from behind and above[m
+     camera.position = Vec3(physics.x, physics.y + 5, physics.z - 10)[m
+[1mdiff --git a/physics.py b/physics.py[m
+[1mindex 7d602ae..29dbc29 100644[m
+[1m--- a/physics.py[m
+[1m+++ b/physics.py[m
+[36m@@ -3,56 +3,36 @@[m
+ # This file handles how the drone moves.[m
+ # It is kept separate from the graphics so we can test it easily.[m
+ [m
+[31m-GRAVITY = -9.8      # gravity pulls the drone down (negative = downward)[m
+[31m-THRUST  = 15.0      # how powerful the motors are[m
+[31m-DRAG    = 0.9       # fraction of speed kept each frame (air resistance)[m
+[32m+[m[32mSPEED = 5.0  # movement speed in units per second[m
+ [m
+ [m
+ class DronePhysics:[m
+     """[m
+[31m-    Keeps track of where the drone is and how fast it's moving.[m
+[32m+[m[32m    Keeps track of where the drone is.[m
+ [m
+     Position:  x (left/right),  y (up/down),  z (forward/back)[m
+[31m-    Velocity:  vx, vy, vz  — speed in each direction[m
+     """[m
+ [m
+     def __init__(self):[m
+         # Start the drone in the air so it doesn't immediately hit the ground[m
+[31m-        self.x  = 0.0[m
+[31m-        self.y  = 5.0[m
+[31m-        self.z  = 0.0[m
+[31m-        self.vx = 0.0   # not moving left or right[m
+[31m-        self.vy = 0.0   # not moving up or down[m
+[31m-        self.vz = 0.0   # not moving forward or back[m
+[31m-[m
+[31m-    def update(self, thrust, move_x, move_z, dt):[m
+[32m+[m[32m        self.x = 0.0[m
+[32m+[m[32m        self.y = 5.0[m
+[32m+[m[32m        self.z = 0.0[m
+[32m+[m
+[32m+[m[32m    def update(self, move_x, move_y, move_z, dt):[m
+         """[m
+         Update the drone every frame.[m
+ [m
+[31m-        thrust  — 0.0 (off) to 1.0 (full power)[m
+         move_x  — -1 (left), 0 (still), +1 (right)[m
+[32m+[m[32m        move_y  — -1 (down / Shift), 0 (hover), +1 (up / Space)[m
+         move_z  — -1 (back),  0 (still), +1 (forward)[m
+         dt      — seconds since the last frame (usually about 0.016)[m
+         """[m
+ [m
+[31m-        # Vertical: thrust pushes up, gravity pulls down[m
+[31m-        self.vy += (thrust * THRUST + GRAVITY) * dt[m
+[31m-[m
+[31m-        # Horizontal: player input pushes the drone sideways[m
+[31m-        self.vx += move_x * THRUST * 0.5 * dt[m
+[31m-        self.vz += move_z * THRUST * 0.5 * dt[m
+[31m-[m
+[31m-        # Drag: multiply speed by DRAG each frame so the drone slows down[m
+[31m-        # when the player lets go of the keys[m
+[31m-        self.vx *= DRAG[m
+[31m-        self.vz *= DRAG[m
+[31m-[m
+[31m-        # Move the drone based on its speed[m
+[31m-        self.x += self.vx * dt[m
+[31m-        self.y += self.vy * dt[m
+[31m-        self.z += self.vz * dt[m
+[32m+[m[32m        self.x += move_x * SPEED * dt[m
+[32m+[m[32m        self.y += move_y * SPEED * dt[m
+[32m+[m[32m        self.z += move_z * SPEED * dt[m
+ [m
+         # Stop the drone going through the floor[m
+         if self.y < 0.5:[m
+[31m-            self.y  = 0.5[m
+[31m-            self.vy = 0[m
+[32m+[m[32m            self.y = 0.5[m
+[1mdiff --git a/tests/test_physics.py b/tests/test_physics.py[m
+[1mindex a266c30..b717a66 100644[m
+[1m--- a/tests/test_physics.py[m
+[1m+++ b/tests/test_physics.py[m
+[36m@@ -6,11 +6,11 @@[m
+ from physics import DronePhysics[m
+ [m
+ [m
+[31m-def simulate(physics, thrust, move_x, move_z, seconds):[m
+[32m+[m[32mdef simulate(physics, move_x, move_y, move_z, seconds):[m
+     """Run the physics for a given number of seconds (at 60 fps)."""[m
+     dt = 1 / 60[m
+     for _ in range(int(seconds * 60)):[m
+[31m-        physics.update(thrust, move_x, move_z, dt)[m
+[32m+[m[32m        physics.update(move_x, move_y, move_z, dt)[m
+ [m
+ [m
+ def test_drone_starts_in_the_air():[m
+[36m@@ -19,38 +19,55 @@[m [mdef test_drone_starts_in_the_air():[m
+     assert p.y > 0[m
+ [m
+ [m
+[31m-def test_gravity_pulls_drone_down():[m
+[31m-    """With no thrust, the drone should fall."""[m
+[32m+[m[32mdef test_space_lifts_drone():[m
+[32m+[m[32m    """Pressing Space (move_y=1) should make the drone rise."""[m
+     p = DronePhysics()[m
+     start_y = p.y[m
+[31m-    simulate(p, thrust=0.0, move_x=0, move_z=0, seconds=1)[m
+[32m+[m[32m    simulate(p, move_x=0, move_y=1, move_z=0, seconds=1)[m
+[32m+[m[32m    assert p.y > start_y[m
+[32m+[m
+[32m+[m
+[32m+[m[32mdef test_shift_lowers_drone():[m
+[32m+[m[32m    """Pressing Shift (move_y=-1) should make the drone sink."""[m
+[32m+[m[32m    p = DronePhysics()[m
+[32m+[m[32m    start_y = p.y[m
+[32m+[m[32m    simulate(p, move_x=0, move_y=-1, move_z=0, seconds=0.5)[m
+     assert p.y < start_y[m
+ [m
+ [m
+[31m-def test_thrust_lifts_drone():[m
+[31m-    """Full thrust should make the drone rise."""[m
+[32m+[m[32mdef test_drone_hovers_without_input():[m
+[32m+[m[32m    """With no input the drone should stay at the same height."""[m
+     p = DronePhysics()[m
+     start_y = p.y[m
+[31m-    simulate(p, thrust=1.0, move_x=0, move_z=0, seconds=1)[m
+[31m-    assert p.y > start_y[m
+[32m+[m[32m    simulate(p, move_x=0, move_y=0, move_z=0, seconds=2)[m
+[32m+[m[32m    assert p.y == start_y[m
+ [m
+ [m
+ def test_drone_does_not_fall_through_floor():[m
+     """The drone should never go below y=0.5."""[m
+     p = DronePhysics()[m
+[31m-    simulate(p, thrust=0.0, move_x=0, move_z=0, seconds=5)[m
+[32m+[m[32m    simulate(p, move_x=0, move_y=-1, move_z=0, seconds=100)[m
+     assert p.y >= 0.5[m
+ [m
+ [m
+ def test_drone_moves_forward():[m
+     """move_z=1 should move the drone forward (increasing z)."""[m
+     p = DronePhysics()[m
+[31m-    simulate(p, thrust=1.0, move_x=0, move_z=1, seconds=1)[m
+[32m+[m[32m    simulate(p, move_x=0, move_y=0, move_z=1, seconds=1)[m
+     assert p.z > 0[m
+ [m
+ [m
+ def test_drone_moves_sideways():[m
+     """move_x=1 should move the drone to the right (increasing x)."""[m
+     p = DronePhysics()[m
+[31m-    simulate(p, thrust=1.0, move_x=1, move_z=0, seconds=1)[m
+[32m+[m[32m    simulate(p, move_x=1, move_y=0, move_z=0, seconds=1)[m
+     assert p.x > 0[m
+[32m+[m
+[32m+[m
+[32m+[m[32mdef test_drone_stops_when_key_released():[m
+[32m+[m[32m    """The drone should stop the moment no key is pressed."""[m
+[32m+[m[32m    p = DronePhysics()[m
+[32m+[m[32m    simulate(p, move_x=1, move_y=0, move_z=0, seconds=1)[m
+[32m+[m[32m    stopped_x = p.x[m
+[32m+[m[32m    simulate(p, move_x=0, move_y=0, move_z=0, seconds=1)[m
+[32m+[m[32m    assert p.x == stopped_x[m

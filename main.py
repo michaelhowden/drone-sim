@@ -45,6 +45,14 @@ add_outline(drone, thickness=4)
 # --- Physics ---
 physics = DronePhysics()
 
+# Tell the physics about each obstacle so it can block the drone.
+# Each entry: (center_x, center_y, center_z, half_width, half_height, half_depth)
+physics.obstacles = [
+    ( 5,  2,  5,  1, 2, 1),   # red box
+    (-6,  2, 10,  1, 2, 1),   # orange box
+    (10,  2, -4,  1, 2, 1),   # cyan box
+]
+
 # --- Controls hint ---
 Text(
     "SPACE: up   SHIFT: down   WASD: move   ESC: quit",
